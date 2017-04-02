@@ -265,6 +265,8 @@ begin
         ComPort1.BaudRate:=br9600
         else if BaudRate='19200' then
           ComPort1.BaudRate:=br19200
+        else if BaudRate='57600' then
+          ComPort1.BaudRate:=br57600
           else ComPort1.BaudRate:=br9600;
   if DataBit='5' then
     ComPort1.DataBits:=dbFive
@@ -396,7 +398,7 @@ begin
   if LoadInputPassDll then
   begin
     ss:='串口选择'+#2+'Combobox'+#2+'COM1'+#13+'COM2'+#13+'COM3'+#13+'COM4'+#2+'0'+#2+#2+#3+
-      '波特率'+#2+'Combobox'+#2+'19200'+#13+'9600'+#13+'4800'+#13+'2400'+#13+'1200'+#2+'0'+#2+#2+#3+
+      '波特率'+#2+'Combobox'+#2+'57600'+#13+'19200'+#13+'9600'+#13+'4800'+#13+'2400'+#13+'1200'+#2+'0'+#2+#2+#3+
       '数据位'+#2+'Combobox'+#2+'8'+#13+'7'+#13+'6'+#13+'5'+#2+'0'+#2+#2+#3+
       '停止位'+#2+'Combobox'+#2+'1'+#13+'1.5'+#13+'2'+#2+'0'+#2+#2+#3+
       '校验位'+#2+'Combobox'+#2+'None'+#13+'Even'+#13+'Odd'+#13+'Mark'+#13+'Space'+#2+'0'+#2+#2+#3+
