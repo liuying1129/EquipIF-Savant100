@@ -319,17 +319,9 @@ begin
 end;
 
 function TfrmMain.GetSpecNo(const Value:string):string; //取得联机号
-const
-  spBs='NO.';
-var
-  s1Pos,SpacePos,spBsLen:integer;
-  vValue:string;
-  isGeb,isJuniorII,ifAM4290,isN600:boolean;
-  ls:TStrings;
 begin
-
-    result:=stringreplace(result,'-','',[rfReplaceAll,rfIgnoreCase]);//Geb200
-    result:='0000'+trim(result);//JuniorII需要trim
+    result:=copy(Value,3,11);
+    result:='0000'+result;
     result:=rightstr(result,4);
 end;
 
@@ -467,70 +459,31 @@ procedure TfrmMain.ComDataPacket1Packet(Sender: TObject;
   const Str: String);
 VAR
   SpecNo:string;
-  ls:TStrings;
-  i:integer;
   dlttype:string;
   sValue:string;
-  //FInts:IData2Lis;
   FInts:OleVariant;
   ReceiveItemInfo:OleVariant;
-  isJuniorII,ifAM4290:BOOLEAN;
 begin
   if length(memo1.Lines.Text)>=60000 then memo1.Lines.Clear;//memo只能接受64K个字符
   memo1.Lines.Add(Str);
 
   SpecNo:=GetSpecNo(Str);
 
-  isJuniorII:=pos('SEQ.NO.',uppercase(Str))>0;
-  ifAM4290:=ManyStr(',',Pchar(Str))>20;//实际上AM4290的逗号不止这个数
+  ReceiveItemInfo:=VarArrayCreate([0,0],varVariant);
 
-  ls:=TStringList.Create;
-  ExtractStrings([#$D,#$A],[],Pchar(Str),ls);//将每行导入到字符串列表中
+  dlttype:=trim(copy(Str,15,16));
+  sValue:=trim(copy(Str,32,6));
+    
+  ReceiveItemInfo[0]:=VarArrayof([dlttype,sValue,'','']);
 
-  ReceiveItemInfo:=VarArrayCreate([0,ls.Count-1],varVariant);
-
-  for i :=0 to ls.Count-1 do
-  begin
-    dlttype:=trim(copy(ls[i],1,4));
-    IF isJuniorII THEN dlttype:=trim(copy(ls[i],3,3));
-    if ifAM4290 then dlttype:=trim(copy(ls[i],1,pos(',',ls[i])-1));
-    dlttype:=stringreplace(dlttype,'*','',[]);//CliniTek
-    sValue:=trim(copy(ls[i],5,MaxInt));
-    IF isJuniorII THEN sValue:=trim(copy(ls[i],7,MaxInt));
-    if ifAM4290 then
-    begin
-      sValue:=copy(ls[i],pos(',',ls[i])+1,PosExt(',',Pchar(ls[i]),3)-pos(',',ls[i])-1);
-      sValue:=StringReplace(sValue,',','',[rfReplaceAll,rfIgnoreCase]);
-    end;
-    sValue:=StringReplace(sValue,'mmol/L','',[rfReplaceAll,rfIgnoreCase]);
-    sValue:=StringReplace(sValue,'Leu/uL','',[rfReplaceAll,rfIgnoreCase]);//HT-150
-    sValue:=StringReplace(sValue,'Cells/uL','',[rfReplaceAll,rfIgnoreCase]);//Geb200
-    sValue:=StringReplace(sValue,'Cell/uL','',[rfReplaceAll,rfIgnoreCase]);
-    sValue:=StringReplace(sValue,'mg/L','',[rfReplaceAll,rfIgnoreCase]);//HT-150
-    sValue:=StringReplace(sValue,'g/L','',[rfReplaceAll,rfIgnoreCase]);
-    sValue:=StringReplace(sValue,'umol/L','',[rfReplaceAll,rfIgnoreCase]);
-    sValue:=StringReplace(sValue,'mg/dl','',[rfReplaceAll,rfIgnoreCase]);//JuniorII
-    sValue:=StringReplace(sValue,'ery/uL','',[rfReplaceAll,rfIgnoreCase]);//GEB-600
-    sValue:=StringReplace(sValue,'EU/dL','',[rfReplaceAll,rfIgnoreCase]);//CliniTek100
-    sValue:=StringReplace(sValue,'/ul','',[rfReplaceAll,rfIgnoreCase]);//JuniorII
-    //sValue:=StringReplace(sValue,'neg','阴性(-)',[rfReplaceAll,rfIgnoreCase]);//JuniorII
-    //sValue:=StringReplace(sValue,'norm','正常',[rfReplaceAll,rfIgnoreCase]);//JuniorII
-    sValue:=trim(sValue);
-
-    ReceiveItemInfo[i]:=VarArrayof([dlttype,sValue,'','']);
-  end;
-  ls.Free;
-  
   if bRegister then
   begin
-    //FInts :=CoData2Lis.CreateRemote('');//暂时仅支持本机
     FInts :=CreateOleObject('Data2LisSvr.Data2Lis');
     FInts.fData2Lis(ReceiveItemInfo,(SpecNo),'',
       (GroupName),(SpecType),(SpecStatus),(EquipChar),
       (CombinID),'',(LisFormCaption),(ConnectString),
       (QuaContSpecNoG),(QuaContSpecNo),(QuaContSpecNoD),'',
       ifRecLog,true,'常规');
-    //if FInts<>nil then FInts:=nil;
     if not VarIsEmpty(FInts) then FInts:= unAssigned;
   end;
 end;
