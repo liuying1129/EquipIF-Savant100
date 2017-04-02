@@ -92,6 +92,7 @@ var
   QuaContSpecNoD:string;
   EquipChar:string;
   H_DTR_RTS:boolean;//DTR/RTS高电位
+  ifRecLog:boolean;//是否记录调试日志
 
 //  RFM:STRING;       //返回数据
   hnd:integer;
@@ -150,6 +151,10 @@ begin
   result := result + 'data source=' + datasource + ';';
   result := result + 'Initial Catalog=' + initialcatalog + ';';
   result := result + 'provider=' + 'SQLOLEDB.1' + ';';
+  //Persist Security Info,表示ADO在数据库连接成功后是否保存密码信息
+  //ADO缺省为True,ADO.net缺省为False
+  //程序中会传ADOConnection信息给TADOLYQuery,故设置为True
+  result := result + 'Persist Security Info=True;';
   if ifIntegrated then
     result := result + 'Integrated Security=SSPI;';
 end;
@@ -231,8 +236,9 @@ begin
   ParityBit:=ini.ReadString(IniSection,'校验位','None');
   H_DTR_RTS:=ini.readBool(IniSection,'DTR/RTS高电位',false);
   autorun:=ini.readBool(IniSection,'开机自动运行',false);
+  ifRecLog:=ini.readBool(IniSection,'调试日志',false);
 
-  GroupName:=trim(ini.ReadString(IniSection,'组别',''));
+  GroupName:=trim(ini.ReadString(IniSection,'工作组',''));
   EquipChar:=trim(uppercase(ini.ReadString(IniSection,'仪器字母','')));//读出来是大写就万无一失了
   SpecType:=ini.ReadString(IniSection,'默认样本类型','');
   SpecStatus:=ini.ReadString(IniSection,'默认样本状态','');
@@ -321,43 +327,7 @@ var
   isGeb,isJuniorII,ifAM4290,isN600:boolean;
   ls:TStrings;
 begin
-    spBsLen:=Length(spBs);
-    s1Pos:=pos(spbs,uppercase(Value));
-    if s1Pos<=0 then
-    begin
-      s1Pos:=pos('#',uppercase(Value));//Bayer CLINITEK 200+,CliniTek100,GEB600,MEJER600II,Mejer-600III
-      spBsLen:=1;
-      if s1Pos<=0 then
-      begin
-        s1Pos:=pos('NO',uppercase(Value));//北京华晟H-1用NO做样本号的标识.注意的是:Normal中也存在NO
-        spBsLen:=2;
-      end;
-    end;
 
-    isGeb:=pos('GEB-',Value)>0;
-    isJuniorII:=pos('SEQ.NO.',uppercase(Value))>0;
-    ifAM4290:=ManyStr(',',Pchar(Value))>20;//实际上AM4290的逗号不止这个数
-    isN600:=pos('Date:',Value)>0;//长春迪瑞N-600
-
-    vValue:=Value;
-    
-    delete(vValue,1,s1Pos-1);
-    
-    SpacePos:=pos(' ',vValue);
-    if isGeb THEN SpacePos:=pos(#$D,vValue);//Geb200
-    if isJuniorII THEN SpacePos:=pos(#$D,vValue);//JuniorII
-    if isN600 THEN SpacePos:=pos(#$D,vValue);//长春迪瑞N-600
-
-    result:=copy(vValue,spBsLen+1,SpacePos-spBsLen-1);
-    
-    if ifAM4290 then
-    begin
-      ls:=TStringList.Create;
-      ExtractStrings([','],[],Pchar(Value),ls);
-      if ls.Count>=3 then result:=ls[2];
-      ls.Free;
-    end;
-    
     result:=stringreplace(result,'-','',[rfReplaceAll,rfIgnoreCase]);//Geb200
     result:='0000'+trim(result);//JuniorII需要trim
     result:=rightstr(result,4);
@@ -439,13 +409,14 @@ begin
       '停止位'+#2+'Combobox'+#2+'1'+#13+'1.5'+#13+'2'+#2+'0'+#2+#2+#3+
       '校验位'+#2+'Combobox'+#2+'None'+#13+'Even'+#13+'Odd'+#13+'Mark'+#13+'Space'+#2+'0'+#2+#2+#3+
       'DTR/RTS高电位'+#2+'CheckListBox'+#2+#2+'0'+#2+#2+#3+
-      '组别'+#2+'Edit'+#2+#2+'1'+#2+#2+#3+
+      '工作组'+#2+'Edit'+#2+#2+'1'+#2+#2+#3+
       '仪器字母'+#2+'Edit'+#2+#2+'1'+#2+#2+#3+
       '检验系统窗体标题'+#2+'Edit'+#2+#2+'1'+#2+#2+#3+
       '默认样本类型'+#2+'Edit'+#2+#2+'1'+#2+#2+#3+
       '默认样本状态'+#2+'Edit'+#2+#2+'1'+#2+#2+#3+
       '组合项目代码'+#2+'Edit'+#2+#2+'1'+#2+#2+#3+
       '开机自动运行'+#2+'CheckListBox'+#2+#2+'1'+#2+#2+#3+
+      '调试日志'+#2+'CheckListBox'+#2+#2+'0'+#2+'注:强烈建议在正常运行时关闭'+#2+#3+
       '高值质控联机号'+#2+'Edit'+#2+#2+'2'+#2+#2+#3+
       '常值质控联机号'+#2+'Edit'+#2+#2+'2'+#2+#2+#3+
       '低值质控联机号'+#2+'Edit'+#2+#2+'2'+#2+#2;
@@ -558,7 +529,7 @@ begin
       (GroupName),(SpecType),(SpecStatus),(EquipChar),
       (CombinID),'',(LisFormCaption),(ConnectString),
       (QuaContSpecNoG),(QuaContSpecNo),(QuaContSpecNoD),'',
-      true,true,'常规');
+      ifRecLog,true,'常规');
     //if FInts<>nil then FInts:=nil;
     if not VarIsEmpty(FInts) then FInts:= unAssigned;
   end;
