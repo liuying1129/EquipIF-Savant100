@@ -322,8 +322,7 @@ end;
 
 function TfrmMain.GetSpecNo(const Value:string):string; //取得联机号
 begin
-    result:=copy(Value,3,11);
-    result:='0000'+result;
+    result:='0000'+trim(Value);
     result:=rightstr(result,4);
 end;
 
@@ -460,23 +459,26 @@ end;
 procedure TfrmMain.ComDataPacket1Packet(Sender: TObject;
   const Str: String);
 VAR
+  ls:TStrings;
   SpecNo:string;
-  dlttype:string;
-  sValue:string;
   FInts:OleVariant;
   ReceiveItemInfo:OleVariant;
 begin
   if length(memo1.Lines.Text)>=60000 then memo1.Lines.Clear;//memo只能接受64K个字符
   memo1.Lines.Add(Str);
 
-  SpecNo:=GetSpecNo(Str);
+  ls:=TStringList.Create;
+  ExtractStrings([#$A],[],Pchar(Str),ls);//将每行导入到字符串列表中
+  
+  if ls.Count<4 then begin ls.Free;exit;end;
+  
+  SpecNo:=GetSpecNo(ls[1]);
 
   ReceiveItemInfo:=VarArrayCreate([0,0],varVariant);
 
-  dlttype:=trim(copy(Str,15,16));
-  sValue:=trim(copy(Str,32,6));
-    
-  ReceiveItemInfo[0]:=VarArrayof([dlttype,sValue,'','']);
+  ReceiveItemInfo[0]:=VarArrayof([trim(ls[2]),trim(ls[3]),'','']);
+
+  ls.Free;
 
   if bRegister then
   begin
