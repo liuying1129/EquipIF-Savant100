@@ -322,7 +322,7 @@ end;
 
 function TfrmMain.GetSpecNo(const Value:string):string; //取得联机号
 begin
-    result:='0000'+trim(Value);
+    result:='0000'+trim(copy(Value,9,3));
     result:=rightstr(result,4);
 end;
 
