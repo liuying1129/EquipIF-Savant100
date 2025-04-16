@@ -35,7 +35,7 @@ object frmMain: TfrmMain
     object ToolBar1: TToolBar
       Left = 9
       Top = 0
-      Width = 312
+      Width = 232
       Height = 21
       Align = alNone
       AutoSize = True
@@ -84,22 +84,6 @@ object frmMain: TfrmMain
         ImageIndex = 3
         OnClick = ToolButton5Click
       end
-      object ToolButton4: TToolButton
-        Left = 232
-        Top = 0
-        Width = 8
-        Caption = 'ToolButton4'
-        ImageIndex = 3
-        Style = tbsSeparator
-      end
-      object ToolButton3: TToolButton
-        Left = 240
-        Top = 0
-        AutoSize = True
-        Caption = #36864#20986'(Esc)'
-        ImageIndex = 2
-        OnClick = N3Click
-      end
     end
   end
   object Memo1: TMemo
@@ -138,7 +122,67 @@ object frmMain: TfrmMain
     TabOrder = 4
     OnClick = Button1Click
   end
-  object LYTray1: TLYTray
+  object PopupMenu1: TPopupMenu
+    OwnerDraw = True
+    Left = 138
+    Top = 26
+    object N1: TMenuItem
+      Caption = #35774#32622
+      Default = True
+      ImageIndex = 1
+      OnClick = N1Click
+    end
+    object N2: TMenuItem
+      Caption = '-'
+    end
+    object N3: TMenuItem
+      Caption = #36864#20986
+      ImageIndex = 0
+      OnClick = N3Click
+    end
+  end
+  object ADOConnection1: TADOConnection
+    LoginPrompt = False
+    Provider = 'SQLOLEDB.1'
+    Left = 210
+    Top = 26
+  end
+  object OpenDialog1: TOpenDialog
+    Left = 240
+    Top = 26
+  end
+  object ComPort1: TComPort
+    BaudRate = Br1200
+    Port = 'COM1'
+    Parity.Bits = PrEven
+    StopBits = SbOneStopBit
+    DataBits = DbEight
+    Events = [EvRxChar, EvTxEmpty, EvRxFlag, EvRing, EvBreak, EvCTS, EvDSR, EvError, EvRLSD, EvRx80Full]
+    FlowControl.OutCTSFlow = False
+    FlowControl.OutDSRFlow = False
+    FlowControl.ControlDTR = DtrDisable
+    FlowControl.ControlRTS = RtsDisable
+    FlowControl.XonXoffOut = False
+    FlowControl.XonXoffIn = False
+    StoredProps = [SpBasic]
+    TriggersOnRxChar = False
+    OnAfterOpen = ComPort1AfterOpen
+    Left = 72
+    Top = 104
+  end
+  object ComDataPacket1: TComDataPacket
+    ComPort = ComPort1
+    IncludeStrings = True
+    OnPacket = ComDataPacket1Packet
+    Left = 104
+    Top = 104
+  end
+  object SaveDialog1: TSaveDialog
+    Left = 272
+    Top = 27
+  end
+  object LYTray1: TCoolTrayIcon
+    CycleInterval = 0
     Icon.Data = {
       0000010002002020000000000000A80800002600000010100000000000006805
       0000CE0800002800000020000000400000000100080000000000000400000000
@@ -254,88 +298,10 @@ object frmMain: TfrmMain
       00002626000000000000000000000000000000000000FFFF0000FF7F0000FE27
       0000FC070000F8030000F8010000F0010000E0010000C0010000800100008201
       0000870100009F810000FFC10000FFF30000FFFF0000}
-    Hint = #25968#25454#25509#25910#26381#21153
+    IconVisible = True
+    IconIndex = 0
     PopupMenu = PopupMenu1
-    ActButton = abRightButton
-    Left = 102
-    Top = 26
-  end
-  object PopupMenu1: TPopupMenu
-    OwnerDraw = True
-    Left = 138
-    Top = 26
-    object N1: TMenuItem
-      Caption = #35774#32622
-      ImageIndex = 1
-      OnClick = N1Click
-    end
-    object N2: TMenuItem
-      Caption = '-'
-    end
-    object N3: TMenuItem
-      Caption = #36864#20986
-      ImageIndex = 0
-      OnClick = N3Click
-    end
-  end
-  object ADOConnection1: TADOConnection
-    LoginPrompt = False
-    Provider = 'SQLOLEDB.1'
-    Left = 210
-    Top = 26
-  end
-  object ApplicationEvents1: TApplicationEvents
-    OnActivate = ApplicationEvents1Activate
-    Left = 174
-    Top = 26
-  end
-  object ActionList1: TActionList
-    Left = 70
-    Top = 26
-    object editpass: TAction
-      Caption = 'editpass'
-      ShortCut = 113
-    end
-    object about: TAction
-      Caption = 'about'
-      ShortCut = 112
-    end
-    object stop: TAction
-      Caption = 'stop'
-      ShortCut = 27
-      OnExecute = N3Click
-    end
-  end
-  object OpenDialog1: TOpenDialog
-    Left = 240
-    Top = 26
-  end
-  object ComPort1: TComPort
-    BaudRate = br1200
-    Port = 'COM1'
-    Parity.Bits = prEven
-    StopBits = sbOneStopBit
-    DataBits = dbEight
-    Events = [evRxChar, evTxEmpty, evRxFlag, evRing, evBreak, evCTS, evDSR, evError, evRLSD, evRx80Full]
-    FlowControl.OutCTSFlow = False
-    FlowControl.OutDSRFlow = False
-    FlowControl.ControlDTR = dtrDisable
-    FlowControl.ControlRTS = rtsDisable
-    FlowControl.XonXoffOut = False
-    FlowControl.XonXoffIn = False
-    OnAfterOpen = ComPort1AfterOpen
-    Left = 72
-    Top = 104
-  end
-  object ComDataPacket1: TComDataPacket
-    ComPort = ComPort1
-    IncludeStrings = True
-    OnPacket = ComDataPacket1Packet
     Left = 104
-    Top = 104
-  end
-  object SaveDialog1: TSaveDialog
-    Left = 272
-    Top = 27
+    Top = 26
   end
 end

@@ -6,12 +6,9 @@ uses Windows{MAX_PATH},SysUtils{fileexists},ComObj{createcomobject},ActiveX{IPer
 procedure OperateLinkFile(ExePathAndName:string; LinkFileName: widestring;
   LinkFilePos:integer;AddorDelete: boolean);
 function ShowOptionForm(const pCaption,pTabSheetCaption,pItemInfo,pInifile:Pchar):boolean;stdcall;external 'OptionSetForm.dll';
-function DeCryptStr(aStr: Pchar; aKey: Pchar): Pchar;stdcall;external 'DESCrypt.dll';//解密
-function EnCryptStr(aStr: Pchar; aKey: Pchar): Pchar;stdcall;external 'DESCrypt.dll';//加密
+function DeCryptStr(aStr: Pchar; aKey: Pchar): Pchar;stdcall;external 'LYFunction.dll';//解密
+function EnCryptStr(aStr: Pchar; aKey: Pchar): Pchar;stdcall;external 'LYFunction.dll';//加密
 function GetHDSn(const RootPath:Pchar):Pchar;stdcall;external 'LYFunction.dll';
-function TryStrToFloatExt(const pSourStr:Pchar; var Value: Single): Boolean;stdcall;external 'LYFunction.dll';
-function ManyStr(const pSS, pSourStr: Pchar): integer;stdcall;external 'LYFunction.dll';
-function PosExt(const psubStr,pAllstr:Pchar;const Times:Byte):integer;stdcall;external 'LYFunction.dll';
 
 implementation
 

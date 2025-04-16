@@ -4,29 +4,21 @@ interface
 
 uses
   Windows, Messages, SysUtils, Classes, Controls, Forms,
-  LYTray, Menus, StdCtrls, Buttons, ADODB,
-  ActnList, AppEvnts, ComCtrls, ToolWin, ExtCtrls,
-  registry,inifiles,Dialogs,
-  StrUtils, DB, ComObj,Variants,CPort;
+  Menus, StdCtrls, Buttons, ADODB,
+  ComCtrls, ToolWin, ExtCtrls,
+  inifiles,Dialogs,
+  StrUtils, DB, ComObj,Variants,CPort, CoolTrayIcon;
 
 type
   TfrmMain = class(TForm)
-    LYTray1: TLYTray;
     PopupMenu1: TPopupMenu;
     N1: TMenuItem;
     N2: TMenuItem;
     N3: TMenuItem;
     ADOConnection1: TADOConnection;
-    ApplicationEvents1: TApplicationEvents;
     CoolBar1: TCoolBar;
     ToolBar1: TToolBar;
-    ToolButton3: TToolButton;
-    ToolButton4: TToolButton;
     ToolButton8: TToolButton;
-    ActionList1: TActionList;
-    editpass: TAction;
-    about: TAction;
-    stop: TAction;
     ToolButton2: TToolButton;
     Memo1: TMemo;
     BitBtn1: TBitBtn;
@@ -39,12 +31,12 @@ type
     ComDataPacket1: TComDataPacket;
     ToolButton7: TToolButton;
     SaveDialog1: TSaveDialog;
+    LYTray1: TCoolTrayIcon;
     procedure N3Click(Sender: TObject);
     procedure FormCreate(Sender: TObject);
     //增加病人信息表中记录,返回该记录的唯一编号作为检验结果表的外键
     procedure FormClose(Sender: TObject; var Action: TCloseAction);
     procedure N1Click(Sender: TObject);
-    procedure ApplicationEvents1Activate(Sender: TObject);
     procedure ToolButton2Click(Sender: TObject);
     procedure BitBtn2Click(Sender: TObject);
     procedure BitBtn1Click(Sender: TObject);
@@ -55,12 +47,8 @@ type
     procedure ComPort1AfterOpen(Sender: TObject);
   private
     { Private declarations }
-    procedure WMSyscommand(var message:TWMMouse);message WM_SYSCOMMAND;
     procedure UpdateConfig;{配置文件生效}
-    function LoadInputPassDll:boolean;
     function MakeDBConn:boolean;
-    function DIFF_decode(const Value:string):string;
-    function GetSpecNo(const Value:string):string; //取得联机号
   public
     { Public declarations }
   end;
@@ -70,7 +58,7 @@ var
 
 implementation
 
-uses ucommfunction;
+uses ucommfunction, PerlRegEx;
 
 const
   CR=#$D+#$A;
@@ -93,6 +81,11 @@ var
   EquipChar:string;
   H_DTR_RTS:boolean;//DTR/RTS高电位
   ifRecLog:boolean;//是否记录调试日志
+  StartString:String;
+  StopString:String;
+  RegExSpecNo:String;//匹配联机号的正则
+  RegExDlttype:String;//匹配联机标识的正则
+  RegExValue:String;//匹配检验结果的正则
 
 //  RFM:STRING;       //返回数据
   hnd:integer;
@@ -160,65 +153,44 @@ begin
 end;
 
 procedure TfrmMain.FormCreate(Sender: TObject);
-var
-  ctext        :string;
-  reg          :tregistry;
 begin
-  ComDataPacket1.StartString:=STX;
-  ComDataPacket1.StopString:=ETX;
-
   ConnectString:=GetConnectString;
   UpdateConfig;
-  if ifRegister then bRegister:=true else bRegister:=false;  
+
+  //笨方法替换.todo:通用替换方法
+  StartString:=StringReplace(StartString, '$02', #$02, [rfReplaceAll]);
+  StartString:=StringReplace(StartString, '$1B', #$1B, [rfReplaceAll]);//热景Hotgen-UPT2800
+  StartString:=StringReplace(StartString, '$16', #$16, [rfReplaceAll]);//热景Hotgen-UPT2800
+  StopString:=StringReplace(StopString, '$03', #$03, [rfReplaceAll]);
+  StopString:=StringReplace(StopString, '$0A', #$0A, [rfReplaceAll]);//热景Hotgen-UPT2800
+  StopString:=StringReplace(StopString, '$1B', #$1B, [rfReplaceAll]);//热景Hotgen-UPT2800
+  StopString:=StringReplace(StopString, '$01', #$01, [rfReplaceAll]);//热景Hotgen-UPT2800
+  StopString:=StringReplace(StopString, '$05', #$05, [rfReplaceAll]);//热景Hotgen-UPT2800
+
+  ComDataPacket1.StartString:=StartString;//变量StartString在UpdateConfig中赋值,故该代码在UpdateConfig之后
+  ComDataPacket1.StopString:=StopString;//变量StopString在UpdateConfig中赋值,故该代码在UpdateConfig之后
+  
+  if ifRegister then bRegister:=true else bRegister:=false;
 
   Caption:='数据接收服务'+ExtractFileName(Application.ExeName);
   lytray1.Hint:='数据接收服务'+ExtractFileName(Application.ExeName);
-
-//=============================初始化密码=====================================//
-    reg:=tregistry.Create;
-    reg.RootKey:=HKEY_CURRENT_USER;
-    reg.OpenKey('\sunyear',true);
-    ctext:=reg.ReadString('pass');
-    if ctext='' then
-    begin
-        reg:=tregistry.Create;
-        reg.RootKey:=HKEY_CURRENT_USER;
-        reg.OpenKey('\sunyear',true);
-        reg.WriteString('pass','JIHONM{');
-        //MessageBox(application.Handle,pchar('感谢您使用智能监控系统，'+chr(13)+'请记住初始化密码：'+'lc'),
-        //            '系统提示',MB_OK+MB_ICONinformation);     //WARNING
-    end;
-    reg.CloseKey;
-    reg.Free;
-//============================================================================//
 end;
 
 procedure TfrmMain.FormClose(Sender: TObject; var Action: TCloseAction);
 begin
-    if LoadInputPassDll then action:=cafree else action:=caNone;
+  action:=caNone;
+  LYTray1.HideMainForm;
 end;
 
 procedure TfrmMain.N3Click(Sender: TObject);
 begin
-    if not LoadInputPassDll then exit;
-    application.Terminate;
+  if (MessageDlg('退出后将不再接收设备数据,确定退出吗？', mtWarning, [mbYes, mbNo], 0) <> mrYes) then exit;
+  application.Terminate;
 end;
 
 procedure TfrmMain.N1Click(Sender: TObject);
 begin
-  show;
-end;
-
-procedure TfrmMain.ApplicationEvents1Activate(Sender: TObject);
-begin
-  hide;
-end;
-
-procedure TfrmMain.WMSyscommand(var message: TWMMouse);
-begin
-  inherited;
-  if message.Keys=SC_MINIMIZE then hide;
-  message.Result:=-1;
+  LYTray1.ShowMainForm;
 end;
 
 procedure TfrmMain.UpdateConfig;
@@ -237,6 +209,13 @@ begin
   H_DTR_RTS:=ini.readBool(IniSection,'DTR/RTS高电位',false);
   autorun:=ini.readBool(IniSection,'开机自动运行',false);
   ifRecLog:=ini.readBool(IniSection,'调试日志',false);
+  StartString:=ini.ReadString(IniSection,'StartString','');
+  if StartString='' then StartString:='$02';
+  StopString:=ini.ReadString(IniSection,'StopString','');
+  if StopString='' then StopString:='$03';
+  RegExSpecNo:=ini.ReadString(IniSection,'匹配联机号的正则','');
+  RegExDlttype:=ini.ReadString(IniSection,'匹配联机标识的正则','');
+  RegExValue:=ini.ReadString(IniSection,'匹配检验结果的正则','');
 
   GroupName:=trim(ini.ReadString(IniSection,'工作组',''));
   EquipChar:=trim(uppercase(ini.ReadString(IniSection,'仪器字母','')));//读出来是大写就万无一失了
@@ -302,66 +281,6 @@ begin
   end;
 end;
 
-function TfrmMain.LoadInputPassDll: boolean;
-TYPE
-    TDLLFUNC=FUNCTION:boolean;
-VAR
-    HLIB:THANDLE;
-    DLLFUNC:TDLLFUNC;
-    PassFlag:boolean;
-begin
-    result:=false;
-    HLIB:=LOADLIBRARY('OnOffLogin.dll');
-    IF HLIB=0 THEN BEGIN SHOWMESSAGE(sCONNECTDEVELOP);EXIT; END;
-    DLLFUNC:=TDLLFUNC(GETPROCADDRESS(HLIB,'showfrmonofflogin'));
-    IF @DLLFUNC=NIL THEN BEGIN SHOWMESSAGE(sCONNECTDEVELOP);EXIT; END;
-    PassFlag:=DLLFUNC;
-    FREELIBRARY(HLIB);
-    result:=passflag;
-end;
-
-function TfrmMain.GetSpecNo(const Value:string):string; //取得联机号
-begin
-    result:='0000'+trim(copy(Value,9,3));
-    result:=rightstr(result,4);
-end;
-
-function TfrmMain.DIFF_decode(const Value:string):string;
-begin
-  result:=stringreplace(Value,'#',' ',[rfReplaceAll,rfIgnoreCase]);
-  result:=trim(result);
-end;
-
-function StrToList(const SourStr:string;const Separator:string):TStrings;
-//根据指定的分隔字符串(Separator)将字符串(SourStr)导入到字符串列表中
-var
-  vSourStr,s:string;
-  ll,lll:integer;
-begin
-  vSourStr:=SourStr;
-  Result := TStringList.Create;
-  lll:=length(Separator);
-
-  while pos(Separator,vSourStr)<>0 do
-  begin
-    ll:=pos(Separator,vSourStr);
-    Result.Add(copy(vSourStr,1,ll-1));
-    delete(vSourStr,1,ll+lll-1);
-  end;
-  Result.Add(vSourStr);
-  s:=vSourStr;
-end;
-
-function TListToVariant(AList:TList):OleVariant;
-var
-  P:Pointer;
-begin
-  Result:=VarArrayCreate([0,Sizeof(TList)],varByte);
-  P:=VarArrayLock(Result);
-  Move(AList,P^,Sizeof(TList));
-  VarArrayUnLock(Result);
-end;
-
 function TfrmMain.MakeDBConn:boolean;
 var
   newconnstr,ss: string;
@@ -393,10 +312,17 @@ end;
 procedure TfrmMain.ToolButton2Click(Sender: TObject);
 var
   ss:string;
+  lsComPort:TStrings;
+  sComPort:String;
 begin
-  if LoadInputPassDll then
-  begin
-    ss:='串口选择'+#2+'Combobox'+#2+'COM1'+#13+'COM2'+#13+'COM3'+#13+'COM4'+#2+'0'+#2+#2+#3+
+  //获取串口列表 begin
+  lsComPort := TStringList.Create;
+  EnumComPorts(lsComPort);
+  sComPort:=lsComPort.Text;
+  lsComPort.Free;
+  //获取串口列表 end
+
+    ss:='串口选择'+#2+'Combobox'+#2+sComPort+#2+'0'+#2+#2+#3+
       '波特率'+#2+'Combobox'+#2+'57600'+#13+'19200'+#13+'9600'+#13+'4800'+#13+'2400'+#13+'1200'+#2+'0'+#2+#2+#3+
       '数据位'+#2+'Combobox'+#2+'8'+#13+'7'+#13+'6'+#13+'5'+#2+'0'+#2+#2+#3+
       '停止位'+#2+'Combobox'+#2+'1'+#13+'1.5'+#13+'2'+#2+'0'+#2+#2+#3+
@@ -409,6 +335,11 @@ begin
       '默认样本状态'+#2+'Edit'+#2+#2+'1'+#2+#2+#3+
       '组合项目代码'+#2+'Edit'+#2+#2+'1'+#2+#2+#3+
       '开机自动运行'+#2+'CheckListBox'+#2+#2+'1'+#2+#2+#3+
+      'StartString'+#2+'Edit'+#2+#2+'1'+#2+'16进制必须2位.如Begin $02'+#2+#3+
+      'StopString'+#2+'Edit'+#2+#2+'1'+#2+'16进制必须2位.如End $03'+#2+#3+
+      '匹配联机号的正则'+#2+'Edit'+#2+#2+'1'+#2+#2+#3+
+      '匹配联机标识的正则'+#2+'Edit'+#2+#2+'1'+#2+#2+#3+
+      '匹配检验结果的正则'+#2+'Edit'+#2+#2+'1'+#2+#2+#3+
       '调试日志'+#2+'CheckListBox'+#2+#2+'0'+#2+'注:强烈建议在正常运行时关闭'+#2+#3+
       '高值质控联机号'+#2+'Edit'+#2+#2+'2'+#2+#2+#3+
       '常值质控联机号'+#2+'Edit'+#2+#2+'2'+#2+#2+#3+
@@ -416,7 +347,6 @@ begin
 
   if ShowOptionForm('',Pchar(IniSection),Pchar(ss),Pchar(ChangeFileExt(Application.ExeName,'.ini'))) then
 	  UpdateConfig;
-  end;
 end;
 
 procedure TfrmMain.BitBtn2Click(Sender: TObject);
@@ -436,13 +366,22 @@ end;
 procedure TfrmMain.Button1Click(Sender: TObject);
 var
   ls:Tstrings;
+  ss:String;
 begin
   OpenDialog1.DefaultExt := '.txt';
   OpenDialog1.Filter := 'txt (*.txt)|*.txt';
   if not OpenDialog1.Execute then exit;
   ls:=Tstringlist.Create;
   ls.LoadFromFile(OpenDialog1.FileName);
-  ComDataPacket1Packet(nil,ls.Text);
+  ss:=ls.Text;
+  {ss:=#$02#$0A'20170113001'#$0A'25-OH-D         '#$0A'9.15  '#$0A'ng/ml'#$0A#$03;//华科泰-savant-100测试数据
+  ss:=#$1B6#$1BC#$16+
+      '2025-02-25 11:01'#$0A+
+      #$1C'&项'#$1B'f'#$00#$02'目'#$1C'.:CCP'#$0A+
+      #$1C'&样品号'#$1C'.:2502250002'#$0A+
+      #$1C'&结'#$1B'f'#$00#$02'果'#$1C'.:466.541ng/mL'#$0A+
+      #$1B'f'#$01#$05;//热景Hotgen-UPT2800测试数据}
+  ComDataPacket1Packet(nil,ss);
   ls.Free;
 end;
 
@@ -459,26 +398,93 @@ end;
 procedure TfrmMain.ComDataPacket1Packet(Sender: TObject;
   const Str: String);
 VAR
-  ls:TStrings;
   SpecNo:string;
+  dlttype:String;
+  sValue:String;
   FInts:OleVariant;
   ReceiveItemInfo:OleVariant;
+  PerlRegEx:TPerlRegEx;
+  ifMatch:Boolean;
 begin
   if length(memo1.Lines.Text)>=60000 then memo1.Lines.Clear;//memo只能接受64K个字符
   memo1.Lines.Add(Str);
 
-  ls:=TStringList.Create;
-  ExtractStrings([#$A],[],Pchar(Str),ls);//将每行导入到字符串列表中
-  
-  if ls.Count<4 then begin ls.Free;exit;end;
-  
-  SpecNo:=GetSpecNo(ls[1]);
+  //获得联机号 begin
+  PerlRegEx:=TPerlRegEx.Create;
+  PerlRegEx.RegEx:=RegExSpecNo;
+  //PerlRegEx.Options:=PerlRegEx.Options+[preUnGreedy];//正则表达式中控制贪婪模式,以便更好的灵活性
+  PerlRegEx.Subject:=Str;
+  ifMatch:=False;//初始化
+  Try
+    ifMatch:=PerlRegEx.Match;//正则表达式为空、语法不正确，Match方法会抛出异常
+  except
+    on E:Exception do
+    begin
+      memo1.Lines.Add('匹配联机号报错:'+E.Message);
+    end;
+  end;
+  if ifMatch then
+  begin
+    SpecNo:=PerlRegEx.MatchedText;//Groups[0]与MatchedText功能一样
+    //GroupCount为捕获组数量
+    //Groups[1] 第一个捕获组匹配的文本
+    //Groups[2] 第二个捕获组匹配的文本，以此类推
+    if PerlRegEx.GroupCount>0 then SpecNo:=PerlRegEx.Groups[1];//支持捕获组匹配.如使用捕获组,获取结果一定是Groups[1]
+    SpecNo:=RightStr('0000'+trim(SpecNo),4);
+  end;
+  FreeAndNil(PerlRegEx);
+  //获得联机号 end
+
+  //获得联机标识 begin
+  PerlRegEx:=TPerlRegEx.Create;
+  PerlRegEx.RegEx:=RegExDlttype;
+  //PerlRegEx.Options:=PerlRegEx.Options+[preUnGreedy];//正则表达式中控制贪婪模式,以便更好的灵活性
+  PerlRegEx.Subject:=Str;
+  ifMatch:=False;//初始化
+  Try
+    ifMatch:=PerlRegEx.Match;//正则表达式为空、语法不正确，Match方法会抛出异常
+  except
+    on E:Exception do
+    begin
+      memo1.Lines.Add('匹配联机标识报错:'+E.Message);
+    end;
+  end;
+  if ifMatch then
+  begin
+    dlttype:=PerlRegEx.MatchedText;//Groups[0]与MatchedText功能一样
+    if PerlRegEx.GroupCount>0 then dlttype:=PerlRegEx.Groups[1];//支持捕获组匹配.如使用捕获组,获取结果一定是Groups[1]
+  end;
+  FreeAndNil(PerlRegEx);
+  //获得联机标识 end
+
+  //获得检验结果 begin
+  PerlRegEx:=TPerlRegEx.Create;
+  PerlRegEx.RegEx:=RegExValue;
+  //PerlRegEx.Options:=PerlRegEx.Options+[preUnGreedy];//正则表达式中控制贪婪模式.因为获取检验结果有时需要贪婪模式
+  PerlRegEx.Subject:=Str;
+  ifMatch:=False;//初始化
+  Try
+    ifMatch:=PerlRegEx.Match;//正则表达式为空、语法不正确，Match方法会抛出异常
+  except
+    on E:Exception do
+    begin
+      memo1.Lines.Add('匹配检验结果报错:'+E.Message);
+    end;
+  end;
+  if ifMatch then
+  begin
+    sValue:=PerlRegEx.MatchedText;//Groups[0]与MatchedText功能一样
+    if PerlRegEx.GroupCount>0 then sValue:=PerlRegEx.Groups[1];//支持捕获组匹配.如使用捕获组,获取结果一定是Groups[1]
+    sValue:=StringReplace(sValue,'RU/ml','',[rfReplaceAll, rfIgnoreCase]);//热景Hotgen-UPT2800
+    sValue:=StringReplace(sValue,'ng/mL','',[rfReplaceAll, rfIgnoreCase]);//热景Hotgen-UPT2800
+    sValue:=StringReplace(sValue,'pg/ml','',[rfReplaceAll, rfIgnoreCase]);//热景Hotgen-UPT2800
+    sValue:=trim(sValue);
+  end;
+  FreeAndNil(PerlRegEx);
+  //获得检验结果 end
 
   ReceiveItemInfo:=VarArrayCreate([0,0],varVariant);
-
-  ReceiveItemInfo[0]:=VarArrayof([trim(ls[2]),trim(ls[3]),'','']);
-
-  ls.Free;
+  ReceiveItemInfo[0]:=VarArrayof([dlttype,sValue,'','']);
 
   if bRegister then
   begin
@@ -487,7 +493,13 @@ begin
       (GroupName),(SpecType),(SpecStatus),(EquipChar),
       (CombinID),'',(LisFormCaption),(ConnectString),
       (QuaContSpecNoG),(QuaContSpecNo),(QuaContSpecNoD),'',
-      ifRecLog,true,'常规');
+      ifRecLog,true,'常规',
+      '',
+      -1,
+      '','','','',
+      -1,-1,-1,-1,
+      -1,-1,-1,-1,
+      false,false,false,false);
     if not VarIsEmpty(FInts) then FInts:= unAssigned;
   end;
 end;
