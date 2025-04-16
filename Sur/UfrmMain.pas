@@ -166,6 +166,7 @@ begin
   StopString:=StringReplace(StopString, '$1B', #$1B, [rfReplaceAll]);//热景Hotgen-UPT2800
   StopString:=StringReplace(StopString, '$01', #$01, [rfReplaceAll]);//热景Hotgen-UPT2800
   StopString:=StringReplace(StopString, '$05', #$05, [rfReplaceAll]);//热景Hotgen-UPT2800
+  StopString:=StringReplace(StopString, '$0D', #$0D, [rfReplaceAll]);//贝克曼-LX20
 
   ComDataPacket1.StartString:=StartString;//变量StartString在UpdateConfig中赋值,故该代码在UpdateConfig之后
   ComDataPacket1.StopString:=StopString;//变量StopString在UpdateConfig中赋值,故该代码在UpdateConfig之后
